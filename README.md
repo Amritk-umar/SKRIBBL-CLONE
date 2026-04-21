@@ -3,7 +3,7 @@
 A full-stack, real-time multiplayer drawing and guessing game built as an end-to-end clone of skribbl.io.
 
 ## 🚀 Live Demo
-**Play here:** [https://your-skribbl-clone.onrender.com](https://your-skribbl-clone.onrender.com) *(Update this with your actual Render URL)*
+**Play here:** [https://your-skribbl-clone.onrender.com](https://skribbl-client.onrender.com/) *(Update this with your actual Render URL)*
 
 ## ✨ Features
 
