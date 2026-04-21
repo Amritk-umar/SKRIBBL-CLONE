@@ -16,8 +16,22 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const { setGameState, addChatMessage, updatePlayerScore } = useGameStore();
 
   useEffect(() => {
-    socket.on('room_state', (data: { id: string, players: Player[], settings: any }) => {
-      setGameState({ players: data.players, settings: data.settings });
+    socket.on('connect', () => {
+        const roomId = window.location.pathname.split('/room/')[1];
+        const name = sessionStorage.getItem('playerName');
+        if (roomId && name) {
+            socket.emit('join_room', { roomId, name });
+        }
+    });
+
+    socket.on('room_state', (data: any) => {
+      setGameState({ 
+        players: data.players, 
+        settings: data.settings,
+        phase: data.phase,
+        currentRound: data.currentRound,
+        currentDrawer: data.currentDrawer
+      });
     });
 
     socket.on('waiting_for_word', (data: { drawerId: string, drawerName: string, round: number }) => {

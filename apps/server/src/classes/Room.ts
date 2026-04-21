@@ -51,7 +51,10 @@ export class Room {
     return {
       id: this.id,
       players: Array.from(this.players.values()).map(p => p.toJSON()),
-      settings: this.settings
+      settings: this.settings,
+      phase: this.game.round === 0 ? 'lobby' : (this.game.currentWord ? 'playing' : 'selecting'),
+      currentRound: this.game.round,
+      currentDrawer: this.game.currentDrawer?.id
     };
   }
 }
