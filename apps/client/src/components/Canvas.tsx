@@ -50,7 +50,7 @@ export const Canvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const socket = useSocket();
-  const { currentDrawer, canvasState, setGameState, settings } = useGameStore();
+  const { currentDrawer, myPlayerId, canvasState, setGameState, settings } = useGameStore();
   
   const [isDrawing, setIsDrawing] = useState(false);
   const [color, setColor] = useState('#000000');
@@ -60,7 +60,7 @@ export const Canvas: React.FC = () => {
   const strokeHistory = useRef<Stroke[]>([]);
   const currentStroke = useRef<Stroke | null>(null);
 
-  const isMeDrawing = currentDrawer === socket.id;
+  const isMeDrawing = currentDrawer === myPlayerId;
 
   useEffect(() => {
     const canvas = canvasRef.current;

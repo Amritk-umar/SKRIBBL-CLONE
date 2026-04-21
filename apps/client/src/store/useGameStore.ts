@@ -20,6 +20,7 @@ interface GameState {
   players: Player[];
   phase: 'lobby' | 'selecting' | 'playing' | 'game_over';
   currentDrawer: string | null;
+  myPlayerId: string | null;
   hostId: string | null;
   word: string;
   hints: string;
@@ -48,6 +49,11 @@ export const useGameStore = create<GameState>((set) => ({
   players: [],
   phase: 'lobby',
   currentDrawer: null,
+  myPlayerId: localStorage.getItem('playerId') || (() => {
+      const id = Math.random().toString(36).substring(2, 15);
+      localStorage.setItem('playerId', id);
+      return id;
+  })(),
   hostId: null,
   word: '',
   hints: '',

@@ -80,8 +80,10 @@ export class Room {
     this.io.to(this.id).emit(event, data);
   }
 
-  public broadcastToPlayer(playerId: string, event: string, data: any) {
-    this.io.to(playerId).emit(event, data);
+  public broadcastToPlayer(targetId: string, event: string, data: any) {
+    const player = this.players.get(targetId);
+    const socketId = player ? player.socketId : targetId;
+    this.io.to(socketId).emit(event, data);
   }
 
   public getRoomData() {

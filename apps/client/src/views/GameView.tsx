@@ -72,7 +72,7 @@ export default function GameView() {
   };
 
   const handleSelectWord = (selectedWord: string) => {
-    socket.emit('choose_word', selectedWord);
+    socket.emit('select_word', selectedWord);
   };
 
   useEffect(() => {

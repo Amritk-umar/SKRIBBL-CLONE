@@ -92,7 +92,7 @@ export class MessageHandler {
         }
     });
 
-    socket.on('choose_word', (word: string) => {
+    socket.on('select_word', (word: string) => {
         const roomId = this.getSocketRoomId(socket);
         const room = roomId ? this.rooms.get(roomId) : null;
         const player = Array.from(room?.players.values() || []).find(p => p.socketId === socket.id);
@@ -169,6 +169,10 @@ export class MessageHandler {
       if (roomId) {
         const room = this.rooms.get(roomId);
         if (room) {
+            // Security Fix: Only drawer can draw and only during active round
+            const player = Array.from(room.players.values()).find(p => p.socketId === socket.id);
+            if (!player || player.id !== room.game.currentDrawer?.id || !room.game.isRoundActive) return;
+
             // Rate limiting drawing events (max 100 per second)
             const now = Date.now();
             const lastTime = this.lastDrawTime.get(socket.id) || 0;
@@ -186,6 +190,10 @@ export class MessageHandler {
         if (roomId) {
           const room = this.rooms.get(roomId);
           if (room) {
+              // Security Fix: Only drawer can draw and only during active round
+              const player = Array.from(room.players.values()).find(p => p.socketId === socket.id);
+              if (!player || player.id !== room.game.currentDrawer?.id || !room.game.isRoundActive) return;
+
               room.drawHistory.push({ type: 'fill', data });
               socket.to(roomId).emit('draw_fill', data);
           }
@@ -197,6 +205,10 @@ export class MessageHandler {
         if (roomId) {
             const room = this.rooms.get(roomId);
             if (room && room.drawHistory.length > 0) {
+                // Security Fix: Only drawer can undo and only during active round
+                const player = Array.from(room.players.values()).find(p => p.socketId === socket.id);
+                if (!player || player.id !== room.game.currentDrawer?.id || !room.game.isRoundActive) return;
+
                 const lastAction = room.drawHistory[room.drawHistory.length - 1];
                 
                 if (lastAction.type === 'fill') {
@@ -239,6 +251,10 @@ export class MessageHandler {
         if (roomId) {
             const room = this.rooms.get(roomId);
             if (room) {
+                // Security Fix: Only drawer can clear and only during active round
+                const player = Array.from(room.players.values()).find(p => p.socketId === socket.id);
+                if (!player || player.id !== room.game.currentDrawer?.id || !room.game.isRoundActive) return;
+
                 room.drawHistory = [];
                 socket.to(roomId).emit('canvas_clear');
             }
