@@ -25,6 +25,7 @@ export default function Lobby() {
 
     const finalRoomId = roomId.trim() || generateRoomId();
     sessionStorage.setItem('playerName', name);
+    localStorage.setItem('playerName', name);
     navigate(`/room/${finalRoomId}`);
   };
 

@@ -19,8 +19,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     socket.on('connect', () => {
         const roomId = window.location.pathname.split('/room/')[1];
-        const name = sessionStorage.getItem('playerName');
+        const name = sessionStorage.getItem('playerName') || localStorage.getItem('playerName');
         const playerId = localStorage.getItem('playerId');
+        
         if (roomId && name && playerId) {
             socket.emit('join_room', { roomId, name, playerId });
         }

@@ -24,8 +24,15 @@ export default function GameView() {
   const [recentPoints, setRecentPoints] = useState<Record<string, { points: number, id: number }>>({});
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const isMeDrawing = currentDrawer === socket.id;
-  const isHost = hostId === localStorage.getItem('playerId');
+  // Identity logic
+  const myPlayerId = localStorage.getItem('playerId') || (() => {
+      const id = Math.random().toString(36).substring(2, 15);
+      localStorage.setItem('playerId', id);
+      return id;
+  })();
+
+  const isMeDrawing = currentDrawer === myPlayerId;
+  const isHost = hostId === myPlayerId;
 
   // Track score changes for animations
   const prevScores = useRef<Record<string, number>>({});
@@ -69,7 +76,7 @@ export default function GameView() {
   };
 
   useEffect(() => {
-    const name = sessionStorage.getItem('playerName');
+    const name = sessionStorage.getItem('playerName') || localStorage.getItem('playerName');
     if (!name) {
       navigate('/');
       return;
@@ -77,7 +84,6 @@ export default function GameView() {
 
     if (!socket.connected) {
       socket.connect();
-      socket.emit('join_room', { roomId, name });
     }
   }, [roomId, socket, navigate]);
 
