@@ -48,11 +48,16 @@ export class Room {
   }
 
   public getRoomData() {
+    let phase = 'lobby';
+    if (this.game.round > 0) {
+        phase = this.game.currentWord ? 'playing' : 'selecting';
+    }
+    
     return {
       id: this.id,
       players: Array.from(this.players.values()).map(p => p.toJSON()),
       settings: this.settings,
-      phase: this.game.round === 0 ? 'lobby' : (this.game.currentWord ? 'playing' : 'selecting'),
+      phase: phase,
       currentRound: this.game.round,
       currentDrawer: this.game.currentDrawer?.id
     };

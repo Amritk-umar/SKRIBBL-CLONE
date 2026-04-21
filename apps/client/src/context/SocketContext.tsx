@@ -30,7 +30,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         settings: data.settings,
         phase: data.phase,
         currentRound: data.currentRound,
-        currentDrawer: data.currentDrawer
+        currentDrawer: data.currentDrawer,
+        word: data.phase === 'playing' ? undefined : '',
+        hints: data.phase === 'playing' ? undefined : ''
       });
     });
 

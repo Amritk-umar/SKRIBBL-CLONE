@@ -46,6 +46,7 @@ export class MessageHandler {
                     return;
                 }
                 room.game.reset(); // Reset rounds, scores, and state
+                room.broadcast('room_state', room.getRoomData()); // Explicitly sync the 'lobby' phase
                 room.game.startRound();
             }
         }
