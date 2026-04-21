@@ -4,7 +4,7 @@ import { useSocket } from '../context/SocketContext';
 import { useGameStore } from '../store/useGameStore';
 import { Canvas } from '../components/Canvas';
 import { Timer } from '../components/Timer';
-import { User, Send, Crown, Link2, Check, MessageSquare, Trophy, Moon, Sun, Zap, Palette, Monitor } from 'lucide-react';
+import { Send, Crown, Link2, Check, MessageSquare, Trophy, Moon, Sun, Zap, Palette, Monitor } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import confetti from 'canvas-confetti';

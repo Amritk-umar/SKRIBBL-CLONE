@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useSocket } from '../context/SocketContext';
 import { useGameStore } from '../store/useGameStore';
-import { Undo2, Trash2, Eraser, Paintbrush, Circle } from 'lucide-react';
+import { Undo2, Trash2, Eraser, Circle } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
