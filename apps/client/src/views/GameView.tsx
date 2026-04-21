@@ -94,92 +94,107 @@ export default function GameView() {
     socket.emit('start_game');
   };
 
+  const [activeTab, setActiveTab] = useState<'game' | 'players' | 'chat'>('game');
+
   return (
-    <div className="h-screen bg-slate-50 dark:bg-slate-950 flex flex-col p-4 md:p-6 overflow-hidden transition-colors duration-500">
-      {/* Modern Header */}
-      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white dark:border-slate-800 p-4 rounded-3xl shadow-xl flex items-center justify-between mb-6">
-        <div className="flex items-center gap-6">
+    <div className="h-screen bg-slate-50 dark:bg-slate-950 flex flex-col p-2 md:p-6 overflow-hidden transition-colors duration-500">
+      {/* Modern Header - More compact on mobile */}
+      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white dark:border-slate-800 p-3 md:p-4 rounded-2xl md:rounded-3xl shadow-xl flex items-center justify-between mb-4 md:mb-6">
+        <div className="flex items-center gap-3 md:gap-6">
           <div className="flex flex-col">
-            <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Room Code</span>
-            <div className="flex items-center gap-2">
-                <span className="text-xl font-black text-indigo-600 dark:text-indigo-400">{roomId}</span>
-                <button onClick={copyInviteLink} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
-                    {copied ? <Check size={14} className="text-green-500" /> : <Link2 size={14} className="text-slate-400" />}
+            <span className="text-[8px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Room</span>
+            <div className="flex items-center gap-1">
+                <span className="text-sm md:text-xl font-black text-indigo-600 dark:text-indigo-400">{roomId}</span>
+                <button onClick={copyInviteLink} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    {copied ? <Check size={12} className="text-green-500" /> : <Link2 size={12} className="text-slate-400" />}
                 </button>
             </div>
           </div>
           
-          <div className="h-10 w-px bg-slate-100 dark:bg-slate-800" />
+          <div className="h-8 md:h-10 w-px bg-slate-100 dark:bg-slate-800" />
 
           <div className="flex flex-col">
-            <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Progress</span>
+            <span className="text-[8px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Progress</span>
             <div className="flex items-center gap-2">
-                <span className="text-xl font-black text-slate-700 dark:text-white">
-                    Round <span className="text-indigo-600 dark:text-indigo-400">{currentRound}</span>
-                    <span className="text-slate-400 dark:text-slate-600 ml-1">/ {settings.totalRounds}</span>
+                <span className="text-sm md:text-xl font-black text-slate-700 dark:text-white">
+                    R <span className="text-indigo-600 dark:text-indigo-400">{currentRound}</span>
+                    <span className="text-slate-400 dark:text-slate-600 ml-0.5 md:ml-1">/{settings.totalRounds}</span>
                 </span>
             </div>
           </div>
           
-          <div className="h-10 w-px bg-slate-100 dark:bg-slate-800" />
+          <div className="h-8 md:h-10 w-px bg-slate-100 dark:bg-slate-800" />
 
-          <div className="flex flex-col items-center">
-            <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Hidden Word</span>
-            <div className="text-2xl font-mono tracking-[0.3em] font-black text-slate-700 dark:text-white">
+          <div className="flex flex-col items-center flex-grow md:flex-initial">
+            <span className="text-[8px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-0.5 md:mb-1">Hidden Word</span>
+            <div className="text-sm md:text-2xl font-mono tracking-[0.2em] md:tracking-[0.3em] font-black text-slate-700 dark:text-white truncate max-w-[100px] md:max-w-none">
                 {hints || '_ _ _ _ _'}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           {phase === 'playing' && <Timer />}
-          {phase === 'lobby' && (
-            isHost ? (
+          {phase === 'lobby' && isHost && (
               <button 
                 onClick={startGame}
                 disabled={players.length < 2}
-                title={players.length < 2 ? "Need at least 2 players to start" : ""}
-                className="bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black shadow-lg shadow-indigo-500/20 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
+                className="bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white px-3 md:px-8 py-2 md:py-3 rounded-xl md:rounded-2xl font-black text-xs md:text-base shadow-lg transition-all active:scale-95 disabled:opacity-50"
               >
-                {players.length < 2 ? "WAITING FOR PLAYERS" : "START MATCH"}
+                {players.length < 2 ? "WAITING" : "START"}
               </button>
-            ) : (
-              <div className="px-6 py-3 bg-slate-100 dark:bg-slate-800 rounded-2xl text-slate-500 dark:text-slate-400 font-bold flex items-center gap-2">
-                <Crown size={16} className="text-yellow-500" />
-                WAITING FOR HOST
-              </div>
-            )
           )}
           <button 
             onClick={toggleTheme}
-            className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:scale-105 transition-all"
+            className="p-2 md:p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
           >
-            {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
           </button>
         </div>
       </div>
 
-      <div className="flex-grow flex gap-6 overflow-hidden">
-        {/* Advanced Players List - Always visible to track progress */}
-        <div className="w-72 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md rounded-[2rem] border border-white dark:border-slate-800 p-5 flex flex-col gap-3 overflow-hidden transition-all duration-500">
-          <h2 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2 px-2">
+      {/* Main Content Area - Tabs on Mobile */}
+      <div className="flex-grow flex flex-col md:flex-row gap-4 md:gap-6 overflow-hidden relative">
+        
+        {/* Mobile Tab Switcher */}
+        <div className="flex md:hidden bg-white dark:bg-slate-900 p-1 rounded-xl mb-2 border border-slate-200 dark:border-slate-800">
+            <button 
+                onClick={() => setActiveTab('players')}
+                className={cn("flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all", activeTab === 'players' ? "bg-indigo-500 text-white" : "text-slate-500")}
+            >Players ({players.length})</button>
+            <button 
+                onClick={() => setActiveTab('game')}
+                className={cn("flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all", activeTab === 'game' ? "bg-indigo-500 text-white" : "text-slate-500")}
+            >Canvas</button>
+            <button 
+                onClick={() => setActiveTab('chat')}
+                className={cn("flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all", activeTab === 'chat' ? "bg-indigo-500 text-white" : "text-slate-500")}
+            >Chat ({chat.length})</button>
+        </div>
+
+        {/* Advanced Players List */}
+        <div className={cn(
+            "w-full md:w-72 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md rounded-2xl md:rounded-[2rem] border border-white dark:border-slate-800 p-3 md:p-5 flex flex-col gap-3 overflow-hidden transition-all duration-500",
+            activeTab !== 'players' && "hidden md:flex"
+        )}>
+          <h2 className="text-[10px] md:text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 md:mb-2 flex items-center gap-2 px-2">
             <Trophy size={14} /> Leaderboard
           </h2>
-          <div className="flex-grow overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+          <div className="flex-grow overflow-y-auto pr-1 md:pr-2 space-y-2 md:space-y-3 custom-scrollbar">
             {players.sort((a,b) => b.score - a.score).map((player, idx) => (
                 <div 
                 key={player.id} 
                 className={cn(
-                    "relative group p-4 rounded-2xl border-2 transition-all duration-300",
+                    "relative group p-3 md:p-4 rounded-xl md:rounded-2xl border-2 transition-all duration-300",
                     player.id === currentDrawer 
                         ? "bg-indigo-50/50 dark:bg-indigo-900/20 border-indigo-200/50 dark:border-indigo-500/30 scale-[1.02] shadow-lg shadow-indigo-500/5" 
                         : "bg-white/50 dark:bg-slate-800/50 border-transparent dark:border-slate-800/50"
                 )}
                 >
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="flex items-center gap-2 md:gap-3 overflow-hidden">
                         <div className={cn(
-                            "w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs",
+                            "w-6 h-6 md:w-8 md:h-8 rounded-lg md:rounded-xl flex items-center justify-center font-black text-[10px] md:text-xs",
                             idx === 0 ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600" :
                             idx === 1 ? "bg-slate-200 dark:bg-slate-700 text-slate-500" :
                             idx === 2 ? "bg-orange-100 dark:bg-orange-900/30 text-orange-600" :
@@ -188,13 +203,13 @@ export default function GameView() {
                             {idx + 1}
                         </div>
                         <div className="flex flex-col overflow-hidden">
-                            <span className="font-bold text-slate-700 dark:text-slate-200 truncate leading-tight">{player.name}</span>
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">{player.score} PTS</span>
+                            <span className="font-bold text-xs md:text-sm text-slate-700 dark:text-slate-200 truncate leading-tight">{player.name}</span>
+                            <span className="text-[8px] md:text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">{player.score} PTS</span>
                         </div>
                     </div>
                     {player.id === currentDrawer && (
-                        <div className="p-1.5 bg-indigo-100 dark:bg-indigo-500 rounded-lg text-indigo-600 dark:text-white animate-bounce">
-                            <Palette size={14} />
+                        <div className="p-1 md:p-1.5 bg-indigo-100 dark:bg-indigo-500 rounded-lg text-indigo-600 dark:text-white animate-bounce">
+                            <Palette size={12} />
                         </div>
                     )}
                 </div>
@@ -204,55 +219,58 @@ export default function GameView() {
         </div>
 
         {/* Dynamic Canvas Area */}
-        <div className="flex-grow flex flex-col gap-6 transition-all duration-500">
-          <div className="flex-grow bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border-8 border-white dark:border-slate-800 overflow-hidden relative">
+        <div className={cn(
+            "flex-grow flex flex-col gap-3 md:gap-6 transition-all duration-500 h-full",
+            activeTab !== 'game' && "hidden md:flex"
+        )}>
+          <div className="flex-grow bg-white dark:bg-slate-900 rounded-2xl md:rounded-[2.5rem] shadow-2xl border-4 md:border-8 border-white dark:border-slate-800 overflow-hidden relative">
             {phase === 'lobby' ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-slate-50/50 dark:bg-slate-900/50 backdrop-blur-sm">
-                    <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center text-white mb-6 shadow-2xl shadow-indigo-500/20 rotate-3">
-                        <Monitor size={40} />
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 md:p-8 text-center bg-slate-50/50 dark:bg-slate-900/50 backdrop-blur-sm">
+                    <div className="w-12 h-12 md:w-20 md:h-20 bg-indigo-600 rounded-xl md:rounded-[2rem] flex items-center justify-center text-white mb-4 md:mb-6 shadow-2xl rotate-3">
+                        <Monitor size={24} className="md:w-10 md:h-10" />
                     </div>
-                    <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-2 uppercase tracking-tight">Game Lobby</h2>
-                    <p className="text-slate-500 dark:text-slate-400 font-bold mb-10">Wait for more players or start the match now!</p>
+                    <h2 className="text-xl md:text-3xl font-black text-slate-900 dark:text-white mb-1 md:mb-2 uppercase tracking-tight">Game Lobby</h2>
+                    <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 font-bold mb-6 md:mb-10">Wait for more players or start the match!</p>
 
-                    <div className="w-full max-w-md grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
-                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-left">Total Rounds</label>
-                            <div className="flex items-center gap-4">
+                    <div className="w-full max-w-md grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mb-6 md:mb-10">
+                        <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <label className="block text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 md:mb-3 text-left">Total Rounds</label>
+                            <div className="flex items-center gap-3 md:gap-4">
                                 <button 
                                     disabled={!isHost}
                                     onClick={() => updateSettings({ totalRounds: Math.max(1, settings.totalRounds - 1) })}
-                                    className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-black hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
+                                    className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-black"
                                 >-</button>
-                                <span className="flex-grow text-2xl font-black text-slate-700 dark:text-slate-200">{settings.totalRounds}</span>
+                                <span className="flex-grow text-lg md:text-2xl font-black text-slate-700 dark:text-slate-200">{settings.totalRounds}</span>
                                 <button 
                                     disabled={!isHost}
                                     onClick={() => updateSettings({ totalRounds: Math.min(10, settings.totalRounds + 1) })}
-                                    className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-black hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
+                                    className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-black"
                                 >+</button>
                             </div>
                         </div>
-                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-left">Draw Time (s)</label>
-                            <div className="flex items-center gap-4">
+                        <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <label className="block text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 md:mb-3 text-left">Draw Time (s)</label>
+                            <div className="flex items-center gap-3 md:gap-4">
                                 <button 
                                     disabled={!isHost}
                                     onClick={() => updateSettings({ drawTime: Math.max(30, settings.drawTime - 10) })}
-                                    className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-black hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
+                                    className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-black"
                                 >-</button>
-                                <span className="flex-grow text-2xl font-black text-slate-700 dark:text-slate-200">{settings.drawTime}</span>
+                                <span className="flex-grow text-lg md:text-2xl font-black text-slate-700 dark:text-slate-200">{settings.drawTime}</span>
                                 <button 
                                     disabled={!isHost}
                                     onClick={() => updateSettings({ drawTime: Math.min(180, settings.drawTime + 10) })}
-                                    className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-black hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
+                                    className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-black"
                                 >+</button>
                             </div>
                         </div>
                     </div>
 
                     {!isHost && (
-                        <div className="flex items-center gap-3 px-6 py-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-2xl font-bold animate-pulse">
-                            <Crown size={18} />
-                            Waiting for host to start...
+                        <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-xl font-bold text-xs animate-pulse">
+                            <Crown size={14} />
+                            Waiting for host...
                         </div>
                     )}
                 </div>
@@ -263,60 +281,62 @@ export default function GameView() {
           
           {/* Smart Guess Input - Hidden for Drawer */}
           {!isMeDrawing && (
-              <form onSubmit={handleSendGuess} className="flex gap-4 items-end animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <form onSubmit={handleSendGuess} className="flex gap-2 md:gap-4 items-end pb-2 md:pb-0">
                 <div className="flex-grow relative group">
                     <input 
                         type="text"
                         value={guess}
                         onChange={(e) => setGuess(e.target.value)}
                         disabled={phase !== 'playing'}
-                        placeholder="Type your guess here..."
-                        className="w-full pl-6 pr-14 py-5 bg-white dark:bg-slate-900 rounded-3xl border-2 border-transparent focus:border-indigo-500 dark:focus:border-indigo-600 shadow-xl dark:shadow-none text-slate-900 dark:text-white font-bold transition-all disabled:opacity-50 outline-none"
+                        placeholder="Type guess..."
+                        className="w-full pl-4 md:pl-6 pr-10 md:pr-14 py-3 md:py-5 bg-white dark:bg-slate-900 rounded-xl md:rounded-3xl border-2 border-transparent focus:border-indigo-500 shadow-xl text-xs md:text-base font-bold outline-none"
                     />
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-300 dark:text-slate-600">
-                        <Zap size={20} />
+                    <div className="absolute right-3 md:right-4 top-1/2 -translate-y-1/2 p-1 text-slate-300 dark:text-slate-600">
+                        <Zap size={16} />
                     </div>
                 </div>
                 <button 
                   type="submit"
                   disabled={phase !== 'playing'}
-                  className="bg-indigo-600 dark:bg-indigo-500 text-white p-5 rounded-3xl hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-all shadow-xl shadow-indigo-500/20 active:scale-95 disabled:grayscale"
+                  className="bg-indigo-600 dark:bg-indigo-500 text-white p-3 md:p-5 rounded-xl md:rounded-3xl shadow-xl active:scale-95 disabled:grayscale"
                 >
-                  <Send size={24} />
+                  <Send size={20} className="md:w-6 md:h-6" />
                 </button>
               </form>
           )}
         </div>
 
-        {/* Immersive Chat - Hidden for Drawer during play */}
-        {(!isMeDrawing || phase !== 'playing') && (
-            <div className="w-80 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md rounded-[2rem] border border-white dark:border-slate-800 flex flex-col overflow-hidden animate-in fade-in slide-in-from-right-4 duration-500">
-              <div className="p-5 border-b border-white dark:border-slate-800 flex items-center gap-3">
-                  <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-500">
-                    <MessageSquare size={18} />
-                  </div>
-                  <span className="font-black text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">Match Chat</span>
+        {/* Immersive Chat */}
+        <div className={cn(
+            "w-full md:w-80 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md rounded-2xl md:rounded-[2rem] border border-white dark:border-slate-800 flex flex-col overflow-hidden animate-in duration-500",
+            (isMeDrawing && phase === 'playing' ? "hidden md:hidden" : ""),
+            (activeTab !== 'chat' && "hidden md:flex")
+        )}>
+          <div className="p-3 md:p-5 border-b border-white dark:border-slate-800 flex items-center gap-2 md:gap-3">
+              <div className="p-1.5 md:p-2 bg-slate-100 dark:bg-slate-800 rounded-lg md:rounded-xl text-slate-500">
+                <MessageSquare size={14} className="md:w-18 md:h-18" />
               </div>
-              <div className="flex-grow p-5 overflow-y-auto space-y-3 custom-scrollbar">
-                {chat.map((msg) => (
-                  <div key={msg.id} className={cn(
-                    "p-3 rounded-2xl text-sm transition-all animate-in fade-in slide-in-from-bottom-2",
-                    msg.isSystem 
-                        ? "bg-green-100/50 dark:bg-green-900/20 text-green-700 dark:text-green-400 font-bold text-center border border-green-200/50 dark:border-green-800/30" 
-                        : "bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-white dark:border-slate-700/50 shadow-sm"
-                  )}>
-                    {!msg.isSystem && (
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="font-black text-[10px] uppercase text-indigo-500">{msg.playerName}</span>
-                        </div>
-                    )}
-                    <p className={cn(msg.isSystem ? "" : "font-medium")}>{msg.text}</p>
-                  </div>
-                ))}
-                <div ref={chatEndRef} />
+              <span className="font-black text-[10px] md:text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500">Match Chat</span>
+          </div>
+          <div className="flex-grow p-3 md:p-5 overflow-y-auto space-y-2 md:space-y-3 custom-scrollbar">
+            {chat.map((msg) => (
+              <div key={msg.id} className={cn(
+                "p-2 md:p-3 rounded-lg md:rounded-2xl text-[10px] md:text-sm transition-all",
+                msg.isSystem 
+                    ? "bg-green-100/50 dark:bg-green-900/20 text-green-700 dark:text-green-400 font-bold text-center border border-green-200/50" 
+                    : "bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-white dark:border-slate-700/50 shadow-sm"
+              )}>
+                {!msg.isSystem && (
+                    <div className="flex items-center gap-1 md:gap-2 mb-0.5 md:mb-1">
+                        <span className="font-black text-[8px] md:text-[10px] uppercase text-indigo-500">{msg.playerName}</span>
+                    </div>
+                )}
+                <p className={cn(msg.isSystem ? "" : "font-medium")}>{msg.text}</p>
               </div>
-            </div>
-        )}
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+        </div>
       </div>
 
       {/* High-Impact Overlays */}
