@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useSocket } from '../context/SocketContext';
 import { useGameStore } from '../store/useGameStore';
-import { Undo2, Trash2, Eraser, Circle } from 'lucide-react';
+import { Undo2, Trash2, Eraser, Circle, PaintBucket, Brush } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -17,10 +17,19 @@ interface DrawData {
   end?: boolean;
 }
 
-interface Stroke {
+interface FillData {
+  x: number;
+  y: number;
   color: string;
-  size: number;
-  points: { x: number; y: number }[];
+}
+
+interface Stroke {
+  type: 'brush' | 'fill';
+  color: string;
+  size?: number;
+  points?: { x: number; y: number }[];
+  x?: number;
+  y?: number;
 }
 
 const COLORS = [
@@ -35,15 +44,18 @@ const SIZES = [
   { label: 'L', value: 16, iconSize: 24 },
 ];
 
+const REFERENCE_WIDTH = 800;
+
 export const Canvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const socket = useSocket();
-  const currentDrawer = useGameStore((state) => state.currentDrawer);
+  const { currentDrawer, canvasState, setGameState, settings } = useGameStore();
   
   const [isDrawing, setIsDrawing] = useState(false);
   const [color, setColor] = useState('#000000');
   const [brushSize, setBrushSize] = useState(3);
+  const [tool, setTool] = useState<'brush' | 'bucket'>('brush');
   
   const strokeHistory = useRef<Stroke[]>([]);
   const currentStroke = useRef<Stroke | null>(null);
@@ -56,21 +68,46 @@ export const Canvas: React.FC = () => {
     if (!canvas || !container) return;
 
     const resizeCanvas = () => {
-      const { width, height } = container.getBoundingClientRect();
-      canvas.width = width;
-      canvas.height = height;
+      const { width: containerWidth, height: containerHeight } = container.getBoundingClientRect();
+      
+      const [w, h] = settings.aspectRatio.split(':').map(Number);
+      const targetRatio = w / (h || 1);
+      
+      let canvasWidth = containerWidth;
+      let canvasHeight = containerWidth / targetRatio;
+
+      if (canvasHeight > containerHeight) {
+        canvasHeight = containerHeight;
+        canvasWidth = containerHeight * targetRatio;
+      }
+
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = canvasWidth * dpr;
+      canvas.height = canvasHeight * dpr;
+      
+      canvas.style.width = `${canvasWidth}px`;
+      canvas.style.height = `${canvasHeight}px`;
+
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.scale(dpr, dpr);
+
       redrawAll();
     };
 
     const obs = new ResizeObserver(resizeCanvas);
     obs.observe(container);
     return () => obs.disconnect();
-  }, []);
+  }, [settings.aspectRatio]);
 
   useEffect(() => {
     const handleDrawData = (data: DrawData) => {
       if (isMeDrawing) return;
       drawNormalized(data);
+    };
+
+    const handleFillData = (data: FillData) => {
+        if (isMeDrawing) return;
+        fillNormalized(data);
     };
 
     const handleDrawUndo = () => {
@@ -89,17 +126,48 @@ export const Canvas: React.FC = () => {
     };
 
     socket.on('draw_data', handleDrawData);
+    socket.on('draw_fill', handleFillData);
     socket.on('draw_undo', handleDrawUndo);
     socket.on('canvas_clear', handleCanvasClear);
     socket.on('round_start', handleRoundStart);
 
     return () => {
       socket.off('draw_data', handleDrawData);
+      socket.off('draw_fill', handleFillData);
       socket.off('draw_undo', handleDrawUndo);
       socket.off('canvas_clear', handleCanvasClear);
       socket.off('round_start', handleRoundStart);
     };
   }, [isMeDrawing, socket]);
+
+  useEffect(() => {
+    if (canvasState && canvasState.length > 0) {
+      // Reconstruct strokeHistory from flat draw events
+      const history: Stroke[] = [];
+      let current: Stroke | null = null;
+
+      canvasState.forEach((event: any) => {
+        if (event.type === 'draw') {
+          const data = event.data;
+          if (!current) {
+            current = { type: 'brush', color: data.color, size: data.size, points: [] };
+          }
+          current.points?.push({ x: data.x, y: data.y });
+          if (data.end) {
+            history.push(current);
+            current = null;
+          }
+        } else if (event.type === 'fill') {
+            history.push({ type: 'fill', color: event.data.color, x: event.data.x, y: event.data.y });
+        }
+      });
+
+      strokeHistory.current = history;
+      redrawAll();
+      // Clear canvasState from store after processing to avoid re-runs
+      setGameState({ canvasState: null });
+    }
+  }, [canvasState, setGameState]);
 
   const lastPoint = useRef<{ x: number, y: number } | null>(null);
 
@@ -108,17 +176,23 @@ export const Canvas: React.FC = () => {
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
 
-    const x = data.x * canvas.width;
-    const y = data.y * canvas.height;
+    // Dimensions are logical here because of scale(dpr, dpr)
+    const logicalWidth = canvas.width / (window.devicePixelRatio || 1);
+    const logicalHeight = canvas.height / (window.devicePixelRatio || 1);
+
+    const x = data.x * logicalWidth;
+    const y = data.y * logicalHeight;
 
     ctx.strokeStyle = data.color;
-    ctx.lineWidth = data.size;
+    // Scale brush size relative to logical width
+    const scale = logicalWidth / REFERENCE_WIDTH;
+    ctx.lineWidth = data.size * scale;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
     if (data.end) {
       lastPoint.current = null;
-      ctx.beginPath(); // Reset path for next stroke
+      ctx.beginPath();
       return;
     }
 
@@ -133,6 +207,58 @@ export const Canvas: React.FC = () => {
         ctx.stroke();
         lastPoint.current = { x, y };
     }
+  };
+
+  const fillNormalized = (data: FillData) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    
+    const x = Math.round(data.x * canvas.width);
+    const y = Math.round(data.y * canvas.height);
+    
+    floodFill(ctx, x, y, data.color);
+    
+    if (!isMeDrawing) {
+        strokeHistory.current.push({ type: 'fill', color: data.color, x: data.x, y: data.y });
+    }
+  };
+
+  const floodFill = (ctx: CanvasRenderingContext2D, startX: number, startY: number, fillHex: string) => {
+    const canvas = ctx.canvas;
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    
+    const targetR = data[(startY * canvas.width + startX) * 4];
+    const targetG = data[(startY * canvas.width + startX) * 4 + 1];
+    const targetB = data[(startY * canvas.width + startX) * 4 + 2];
+    const targetA = data[(startY * canvas.width + startX) * 4 + 3];
+
+    // Convert hex to RGB
+    const fillR = parseInt(fillHex.slice(1, 3), 16);
+    const fillG = parseInt(fillHex.slice(3, 5), 16);
+    const fillB = parseInt(fillHex.slice(5, 7), 16);
+
+    if (targetR === fillR && targetG === fillG && targetB === fillB && targetA === 255) return;
+
+    const stack: [number, number][] = [[startX, startY]];
+    
+    while (stack.length > 0) {
+      const [x, y] = stack.pop()!;
+      let pixelPos = (y * canvas.width + x) * 4;
+
+      if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) continue;
+      if (data[pixelPos] !== targetR || data[pixelPos+1] !== targetG || data[pixelPos+2] !== targetB || data[pixelPos+3] !== targetA) continue;
+
+      data[pixelPos] = fillR;
+      data[pixelPos+1] = fillG;
+      data[pixelPos+2] = fillB;
+      data[pixelPos+3] = 255;
+
+      stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+    }
+
+    ctx.putImageData(imageData, 0, 0);
   };
 
   const emitAndDraw = (event: React.MouseEvent | React.TouchEvent, isEnd = false) => {
@@ -151,43 +277,69 @@ export const Canvas: React.FC = () => {
       clientY = (event as React.MouseEvent).clientY;
     }
 
-    const x = (clientX - rect.left) / canvas.width;
-    const y = (clientY - rect.top) / canvas.height;
+    const x = (clientX - rect.left) / rect.width;
+    const y = (clientY - rect.top) / rect.height;
 
-    const drawData: DrawData = { x, y, color, size: brushSize, end: isEnd };
-    socket.emit('draw_event', drawData);
-    drawNormalized(drawData);
+    if (tool === 'bucket' && !isEnd) {
+        const fillData: FillData = { x, y, color };
+        socket.emit('draw_fill', fillData);
+        fillNormalized(fillData);
+        strokeHistory.current.push({ type: 'fill', color, x, y });
+        setIsDrawing(false); // Only fill once per click
+        return;
+    }
 
-    if (isEnd) {
-      if (currentStroke.current) {
-        strokeHistory.current.push(currentStroke.current);
-        currentStroke.current = null;
-      }
-    } else {
-      if (!currentStroke.current) {
-         currentStroke.current = { color, size: brushSize, points: [] };
-      }
-      currentStroke.current.points.push({ x, y });
+    if (tool === 'brush') {
+        const drawData: DrawData = { x, y, color, size: brushSize, end: isEnd };
+        socket.emit('draw_event', drawData);
+        drawNormalized(drawData);
+
+        if (isEnd) {
+            if (currentStroke.current) {
+                strokeHistory.current.push(currentStroke.current);
+                currentStroke.current = null;
+            }
+        } else {
+            if (!currentStroke.current) {
+                currentStroke.current = { type: 'brush', color, size: brushSize, points: [] };
+            }
+            currentStroke.current.points?.push({ x, y });
+        }
     }
   };
 
   const handleStart = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isMeDrawing) return;
     setIsDrawing(true);
-    const ctx = canvasRef.current?.getContext('2d');
-    ctx?.beginPath();
+    if (tool === 'brush') {
+        const ctx = canvasRef.current?.getContext('2d');
+        ctx?.beginPath();
+    }
     emitAndDraw(e);
   };
 
   const handleMove = (e: React.MouseEvent | React.TouchEvent) => {
-    emitAndDraw(e);
+    if (tool === 'brush') {
+        emitAndDraw(e);
+    }
   };
 
-  const handleEnd = (e: React.MouseEvent | React.TouchEvent) => {
+  const handleEnd = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
     if (!isMeDrawing || !isDrawing) return;
     setIsDrawing(false);
-    emitAndDraw(e, true);
+    if (tool === 'brush') {
+        emitAndDraw(e as any, true);
+    }
   };
+
+  useEffect(() => {
+    window.addEventListener('mouseup', handleEnd);
+    window.addEventListener('touchend', handleEnd);
+    return () => {
+        window.removeEventListener('mouseup', handleEnd);
+        window.removeEventListener('touchend', handleEnd);
+    };
+  }, [isMeDrawing, isDrawing, tool]);
 
   const handleUndo = () => {
     if (!isMeDrawing) return;
@@ -207,7 +359,9 @@ export const Canvas: React.FC = () => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (canvas && ctx) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const logicalWidth = canvas.width / (window.devicePixelRatio || 1);
+      const logicalHeight = canvas.height / (window.devicePixelRatio || 1);
+      ctx.clearRect(0, 0, logicalWidth, logicalHeight);
     }
   };
 
@@ -217,26 +371,44 @@ export const Canvas: React.FC = () => {
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
 
-    strokeHistory.current.forEach(stroke => {
-      ctx.beginPath();
-      ctx.strokeStyle = stroke.color;
-      ctx.lineWidth = stroke.size;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+    const logicalWidth = canvas.width / (window.devicePixelRatio || 1);
+    const logicalHeight = canvas.height / (window.devicePixelRatio || 1);
+    const scale = logicalWidth / REFERENCE_WIDTH;
 
-      stroke.points.forEach((point, i) => {
-        const x = point.x * canvas.width;
-        const y = point.y * canvas.height;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
-      ctx.stroke();
-      ctx.closePath();
+    strokeHistory.current.forEach(stroke => {
+      if (stroke.type === 'brush') {
+        ctx.beginPath();
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = (stroke.size || 3) * scale;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        let prevPoint: { x: number, y: number } | null = null;
+        stroke.points?.forEach((point, i) => {
+            const x = point.x * logicalWidth;
+            const y = point.y * logicalHeight;
+            if (i === 0) {
+                ctx.moveTo(x, y);
+                prevPoint = { x, y };
+            } else if (prevPoint) {
+                const midX = (prevPoint.x + x) / 2;
+                const midY = (prevPoint.y + y) / 2;
+                ctx.quadraticCurveTo(prevPoint.x, prevPoint.y, midX, midY);
+                prevPoint = { x, y };
+            }
+        });
+        ctx.stroke();
+        ctx.closePath();
+      } else if (stroke.type === 'fill') {
+          const x = Math.round((stroke.x || 0) * canvas.width);
+          const y = Math.round((stroke.y || 0) * canvas.height);
+          floodFill(ctx, x, y, stroke.color);
+      }
     });
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-white relative">
+    <div className="flex flex-col h-full w-full bg-slate-50 dark:bg-slate-950 relative">
       <div 
         ref={containerRef} 
         className={cn(
@@ -246,7 +418,7 @@ export const Canvas: React.FC = () => {
       >
         <canvas
           ref={canvasRef}
-          className="absolute top-0 left-0 w-full h-full touch-none"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 touch-none bg-white shadow-lg"
           onMouseDown={handleStart}
           onMouseMove={handleMove}
           onMouseUp={handleEnd}
@@ -259,6 +431,30 @@ export const Canvas: React.FC = () => {
 
       {isMeDrawing && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-xl p-4 rounded-[2rem] border border-white/10 shadow-2xl flex items-center gap-6 animate-in slide-in-from-bottom-5">
+            {/* Tool Toggle */}
+            <div className="flex items-center gap-2 pr-6 border-r border-white/10">
+                <button 
+                    onClick={() => setTool('brush')}
+                    className={cn(
+                        "p-3 rounded-xl transition-all",
+                        tool === 'brush' ? "bg-indigo-500 text-white" : "text-slate-400 hover:bg-white/5"
+                    )}
+                    title="Brush Tool"
+                >
+                    <Brush size={20} />
+                </button>
+                <button 
+                    onClick={() => setTool('bucket')}
+                    className={cn(
+                        "p-3 rounded-xl transition-all",
+                        tool === 'bucket' ? "bg-indigo-500 text-white" : "text-slate-400 hover:bg-white/5"
+                    )}
+                    title="Fill Bucket"
+                >
+                    <PaintBucket size={20} />
+                </button>
+            </div>
+
             {/* Color Palette */}
             <div className="grid grid-cols-6 gap-2 pr-6 border-r border-white/10">
                 {COLORS.map(c => (
@@ -275,7 +471,7 @@ export const Canvas: React.FC = () => {
             </div>
 
             {/* Brush Sizes */}
-            <div className="flex items-center gap-3 pr-6 border-r border-white/10">
+            <div className={cn("flex items-center gap-3 pr-6 border-r border-white/10 transition-opacity", tool === 'bucket' && "opacity-20 pointer-events-none")}>
                 {SIZES.map(s => (
                     <button
                         key={s.value}
@@ -295,10 +491,13 @@ export const Canvas: React.FC = () => {
             {/* Actions */}
             <div className="flex items-center gap-2">
                 <button 
-                    onClick={() => setColor('#ffffff')} 
+                    onClick={() => {
+                        setColor('#ffffff');
+                        setTool('brush');
+                    }} 
                     className={cn(
                         "p-3 rounded-xl transition-all",
-                        color === '#ffffff' ? "bg-indigo-500 text-white" : "text-slate-400 hover:bg-white/5"
+                        (color === '#ffffff' && tool === 'brush') ? "bg-indigo-500 text-white" : "text-slate-400 hover:bg-white/5"
                     )}
                     title="Eraser"
                 >

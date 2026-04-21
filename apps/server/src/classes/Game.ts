@@ -6,27 +6,38 @@ export class Game {
   public round: number = 0;
   public currentWord: string = '';
   public currentDrawer: Player | null = null;
+  public isRoundActive: boolean = false;
   
   private timeLeft: number = 0;
   private timer: NodeJS.Timeout | null = null;
   private hintTimer: NodeJS.Timeout | null = null;
+  private nextRoundTimeout: NodeJS.Timeout | null = null;
   private correctGuessers: number = 0;
+  private validOptions: string[] = [];
 
   private playersOrder: string[] = [];
   private currentDrawerIndex: number = -1;
 
   constructor(private room: Room) {}
 
+  public getTimeLeft() {
+    return this.timeLeft;
+  }
+
   public reset() {
     this.round = 0;
     this.currentWord = '';
     this.currentDrawer = null;
+    this.isRoundActive = false;
     this.timeLeft = 0;
     this.correctGuessers = 0;
     this.playersOrder = [];
     this.currentDrawerIndex = -1;
+    this.validOptions = [];
+    this.room.drawHistory = []; // Clear drawing history on reset
     if (this.timer) clearInterval(this.timer);
     if (this.hintTimer) clearInterval(this.hintTimer);
+    if (this.nextRoundTimeout) clearTimeout(this.nextRoundTimeout);
     
     // Also reset all player scores
     this.room.players.forEach(player => {
@@ -35,6 +46,12 @@ export class Game {
   }
 
   public startRound() {
+    if (this.nextRoundTimeout) clearTimeout(this.nextRoundTimeout);
+    
+    // Explicitly reset per-round flags
+    this.currentWord = '';
+    this.isRoundActive = false;
+
     // If we finished a cycle of all players, or it's the very first round
     if (this.currentDrawerIndex === -1 || this.currentDrawerIndex >= this.playersOrder.length - 1) {
         this.playersOrder = Array.from(this.room.players.keys());
@@ -47,35 +64,58 @@ export class Game {
         return;
     }
 
-    this.currentDrawerIndex++;
-    const drawerId = this.playersOrder[this.currentDrawerIndex];
-    const currentPlayer = this.room.players.get(drawerId);
+    // Find next connected player using a loop instead of recursion to prevent stack overflow
+    let found = false;
+    while (this.currentDrawerIndex < this.playersOrder.length - 1) {
+        this.currentDrawerIndex++;
+        const drawerId = this.playersOrder[this.currentDrawerIndex];
+        const currentPlayer = this.room.players.get(drawerId);
+        
+        if (currentPlayer && currentPlayer.isConnected) {
+            this.currentDrawer = currentPlayer;
+            found = true;
+            break;
+        }
+    }
 
-    if (!currentPlayer || !currentPlayer.isConnected) {
-        // Player left or disconnected, skip to next
-        // If we've tried everyone in this order, we might need to increment round or stop
-        if (this.currentDrawerIndex >= this.playersOrder.length - 1) {
-            // End of this cycle
-            this.startRound();
+    if (!found) {
+        // If we reached the end of the order without finding a connected player
+        // Check if there are ANY connected players left in the room
+        const anyConnected = Array.from(this.room.players.values()).some(p => p.isConnected);
+        if (anyConnected) {
+            // Reset index and try next round cycle
+            this.currentDrawerIndex = -1;
+            this.startRound(); 
+            // Note: If all players are disconnected, this would still recurse, 
+            // but the 'anyConnected' check prevents it.
         } else {
-            this.startRound();
+            this.reset();
+            this.room.broadcast('room_state', this.room.getRoomData());
         }
         return;
     }
 
-    this.currentDrawer = currentPlayer;
-    this.currentDrawer.isDrawing = true;
+    this.currentDrawer!.isDrawing = true;
     this.correctGuessers = 0;
+    this.room.drawHistory = []; // Clear canvas history for new round
     
-    const options = getWordOptions(3);
+    // Custom Words Logic
+    let pool = getWordOptions(10); // Default pool
+    if (this.room.settings.customWords && this.room.settings.customWords.length > 0) {
+        // Mix custom words with default pool (50/50 chance or priority)
+        const customPool = this.room.settings.customWords.sort(() => 0.5 - Math.random());
+        pool = [...customPool.slice(0, 5), ...pool.slice(0, 5)].sort(() => 0.5 - Math.random());
+    }
+    
+    this.validOptions = pool.slice(0, 3);
     
     this.room.broadcast('waiting_for_word', {
-      drawerId: this.currentDrawer.id,
-      drawerName: this.currentDrawer.name,
+      drawerId: this.currentDrawer!.id,
+      drawerName: this.currentDrawer!.name,
       round: this.round
     });
 
-    this.room.broadcastToPlayer(this.currentDrawer.id, 'word_options', options);
+    this.room.broadcastToPlayer(this.currentDrawer!.id, 'word_options', this.validOptions);
     
     if (this.timer) clearInterval(this.timer);
     this.timeLeft = 15;
@@ -83,7 +123,7 @@ export class Game {
         this.timeLeft--;
         this.room.broadcast('timer_update', this.timeLeft);
         if (this.timeLeft <= 0) {
-            this.selectWord(options[0]);
+            this.selectWord(this.validOptions[0]);
         }
     }, 1000);
   }
@@ -91,8 +131,14 @@ export class Game {
   public selectWord(word: string) {
     if (this.timer) clearInterval(this.timer);
     
+    // Validation: ensure word was an option
+    if (!this.validOptions.includes(word)) {
+        word = this.validOptions[0];
+    }
+
     this.currentWord = word;
     this.timeLeft = this.room.settings.drawTime;
+    this.isRoundActive = true;
 
     this.room.broadcast('round_start', {
       drawerId: this.currentDrawer?.id,
@@ -137,6 +183,9 @@ export class Game {
   }
 
   public checkGuess(player: Player, guess: string): boolean {
+    // Security Fix: Drawer cannot guess their own word
+    if (player.id === this.currentDrawer?.id) return false;
+
     if (guess.toLowerCase().trim() === this.currentWord.toLowerCase()) {
       this.correctGuessers++;
       const points = this.calculateScore(this.timeLeft, this.correctGuessers);
@@ -145,6 +194,13 @@ export class Game {
       if (this.currentDrawer) {
         this.currentDrawer.addScore(Math.round(points * 0.5));
       }
+
+      // If everyone except the drawer has guessed, end the round early
+      const activePlayers = Array.from(this.room.players.values()).filter(p => p.isConnected);
+      if (this.correctGuessers >= activePlayers.length - 1) {
+          this.endRound();
+      }
+      
       return true;
     }
     return false;
@@ -159,16 +215,18 @@ export class Game {
   public endRound() {
     if (this.timer) clearInterval(this.timer);
     if (this.hintTimer) clearInterval(this.hintTimer);
+    if (this.nextRoundTimeout) clearTimeout(this.nextRoundTimeout);
     
     if (this.currentDrawer) this.currentDrawer.isDrawing = false;
+    this.isRoundActive = false;
     
     this.room.broadcast('round_end', {
       word: this.currentWord,
       scores: Array.from(this.room.players.values()).map(p => ({ id: p.id, score: p.score }))
     });
 
-    // Start next round after 5 seconds
-    setTimeout(() => {
+    // Start next round after 5 seconds, store timeout to prevent memory leak
+    this.nextRoundTimeout = setTimeout(() => {
         this.startRound();
     }, 5000);
   }

@@ -4,8 +4,9 @@ export class Player {
   public isConnected: boolean = true;
 
   constructor(
-    public readonly id: string,
-    public name: string
+    public socketId: string,
+    public name: string,
+    public readonly id: string // Persistent playerId
   ) {}
 
   public addScore(points: number) {
@@ -14,7 +15,7 @@ export class Player {
 
   public toJSON() {
     return {
-      id: this.id,
+      id: this.id, // Return persistent ID to client
       name: this.name,
       score: this.score,
       isDrawing: this.isDrawing,

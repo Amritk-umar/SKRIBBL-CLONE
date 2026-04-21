@@ -17,14 +17,42 @@ export default function GameView() {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const socket = useSocket();
-  const { players, phase, currentDrawer, hints, chat, word, wordOptions, waitingForWord, theme, toggleTheme, settings, currentRound } = useGameStore();
+  const { players, phase, currentDrawer, hostId, hints, chat, word, wordOptions, waitingForWord, theme, toggleTheme, settings, currentRound } = useGameStore();
   
   const [guess, setGuess] = useState('');
   const [copied, setCopied] = useState(false);
+  const [recentPoints, setRecentPoints] = useState<Record<string, { points: number, id: number }>>({});
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const isMeDrawing = currentDrawer === socket.id;
-  const isHost = players[0]?.id === socket.id;
+  const isHost = hostId === localStorage.getItem('playerId');
+
+  // Track score changes for animations
+  const prevScores = useRef<Record<string, number>>({});
+  
+  useEffect(() => {
+    players.forEach(p => {
+        const prevScore = prevScores.current[p.id] || 0;
+        if (p.score > prevScore) {
+            const diff = p.score - prevScore;
+            const animId = Date.now();
+            setRecentPoints(prev => ({ ...prev, [p.id]: { points: diff, id: animId } }));
+            
+            // Cleanup after animation
+            setTimeout(() => {
+                setRecentPoints(prev => {
+                    if (prev[p.id]?.id === animId) {
+                        const next = { ...prev };
+                        delete next[p.id];
+                        return next;
+                    }
+                    return prev;
+                });
+            }, 2000);
+        }
+        prevScores.current[p.id] = p.score;
+    });
+  }, [players]);
 
   const updateSettings = (newSettings: any) => {
     socket.emit('update_settings', newSettings);
@@ -97,7 +125,7 @@ export default function GameView() {
   const [activeTab, setActiveTab] = useState<'game' | 'players' | 'chat'>('game');
 
   return (
-    <div className="h-screen bg-slate-50 dark:bg-slate-950 flex flex-col p-2 md:p-6 overflow-hidden transition-colors duration-500">
+    <div className="h-screen bg-slate-50 dark:bg-slate-950 flex flex-col p-2 md:p-4 lg:p-6 overflow-hidden transition-colors duration-500">
       {/* Modern Header - More compact on mobile */}
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white dark:border-slate-800 p-3 md:p-4 rounded-2xl md:rounded-3xl shadow-xl flex items-center justify-between mb-4 md:mb-6">
         <div className="flex items-center gap-3 md:gap-6">
@@ -125,9 +153,9 @@ export default function GameView() {
           
           <div className="h-8 md:h-10 w-px bg-slate-100 dark:bg-slate-800" />
 
-          <div className="flex flex-col items-center flex-grow md:flex-initial">
+          <div className="flex flex-col items-center flex-grow md:flex-initial px-2">
             <span className="text-[8px] md:text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-0.5 md:mb-1">Hidden Word</span>
-            <div className="text-sm md:text-2xl font-mono tracking-[0.2em] md:tracking-[0.3em] font-black text-slate-700 dark:text-white truncate max-w-[100px] md:max-w-none">
+            <div className="text-xs sm:text-sm md:text-2xl font-mono tracking-[0.1em] sm:tracking-[0.2em] md:tracking-[0.3em] font-black text-slate-700 dark:text-white whitespace-nowrap overflow-x-auto no-scrollbar max-w-[120px] sm:max-w-[200px] md:max-w-none">
                 {hints || '_ _ _ _ _'}
             </div>
           </div>
@@ -153,11 +181,11 @@ export default function GameView() {
         </div>
       </div>
 
-      {/* Main Content Area - Tabs on Mobile */}
-      <div className="flex-grow flex flex-col md:flex-row gap-4 md:gap-6 overflow-hidden relative">
+      {/* Main Content Area - Fluid Grid */}
+      <div className="flex-grow flex flex-col md:flex-row gap-4 lg:gap-6 overflow-hidden relative">
         
-        {/* Mobile Tab Switcher */}
-        <div className="flex md:hidden bg-white dark:bg-slate-900 p-1 rounded-xl mb-2 border border-slate-200 dark:border-slate-800">
+        {/* Mobile Tab Switcher - Only shows when screen is tight */}
+        <div className="flex md:hidden bg-white dark:bg-slate-900 p-1 rounded-xl mb-2 border border-slate-200 dark:border-slate-800 shrink-0">
             <button 
                 onClick={() => setActiveTab('players')}
                 className={cn("flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all", activeTab === 'players' ? "bg-indigo-500 text-white" : "text-slate-500")}
@@ -172,9 +200,9 @@ export default function GameView() {
             >Chat ({chat.length})</button>
         </div>
 
-        {/* Advanced Players List */}
+        {/* Players List - Flexible width */}
         <div className={cn(
-            "w-full md:w-72 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md rounded-2xl md:rounded-[2rem] border border-white dark:border-slate-800 p-3 md:p-5 flex flex-col gap-3 overflow-hidden transition-all duration-500",
+            "flex-none md:flex-[0.8] lg:flex-[0.6] min-w-0 md:min-w-[200px] lg:min-w-[240px] max-w-full md:max-w-[280px] lg:max-w-[320px] bg-white/50 dark:bg-slate-900/50 backdrop-blur-md rounded-2xl md:rounded-[2rem] border border-white dark:border-slate-800 p-3 md:p-5 flex flex-col gap-3 overflow-hidden transition-all duration-500",
             activeTab !== 'players' && "hidden md:flex"
         )}>
           <h2 className="text-[10px] md:text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 md:mb-2 flex items-center gap-2 px-2">
@@ -188,9 +216,17 @@ export default function GameView() {
                     "relative group p-3 md:p-4 rounded-xl md:rounded-2xl border-2 transition-all duration-300",
                     player.id === currentDrawer 
                         ? "bg-indigo-50/50 dark:bg-indigo-900/20 border-indigo-200/50 dark:border-indigo-500/30 scale-[1.02] shadow-lg shadow-indigo-500/5" 
-                        : "bg-white/50 dark:bg-slate-800/50 border-transparent dark:border-slate-800/50"
+                        : "bg-white/50 dark:bg-slate-800/50 border-transparent dark:border-slate-800/50",
+                    recentPoints[player.id] && "scale-105 border-green-500/50 bg-green-50/10 dark:bg-green-900/10"
                 )}
                 >
+                {/* Floating Points Indicator */}
+                {recentPoints[player.id] && (
+                    <div className="absolute -right-2 -top-2 bg-green-500 text-white text-[10px] md:text-xs font-black px-2 py-1 rounded-full shadow-lg animate-bounce z-20">
+                        +{recentPoints[player.id].points}
+                    </div>
+                )}
+                
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 md:gap-3 overflow-hidden">
                         <div className={cn(
@@ -203,7 +239,10 @@ export default function GameView() {
                             {idx + 1}
                         </div>
                         <div className="flex flex-col overflow-hidden">
-                            <span className="font-bold text-xs md:text-sm text-slate-700 dark:text-slate-200 truncate leading-tight">{player.name}</span>
+                            <div className="flex items-center gap-1">
+                                <span className="font-bold text-xs md:text-sm text-slate-700 dark:text-slate-200 truncate leading-tight">{player.name}</span>
+                                {player.id === hostId && <Crown size={12} className="text-yellow-500 fill-yellow-500 flex-shrink-0" />}
+                            </div>
                             <span className="text-[8px] md:text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">{player.score} PTS</span>
                         </div>
                     </div>
@@ -218,13 +257,14 @@ export default function GameView() {
           </div>
         </div>
 
-        {/* Dynamic Canvas Area */}
+        {/* Dynamic Canvas Area - High Priority for space */}
         <div className={cn(
-            "flex-grow flex flex-col gap-3 md:gap-6 transition-all duration-500 h-full",
+            "flex-[3] flex flex-col gap-3 md:gap-4 lg:gap-6 transition-all duration-500 min-w-0 h-full",
             activeTab !== 'game' && "hidden md:flex"
         )}>
           <div className="flex-grow bg-white dark:bg-slate-900 rounded-2xl md:rounded-[2.5rem] shadow-2xl border-4 md:border-8 border-white dark:border-slate-800 overflow-hidden relative">
             {phase === 'lobby' ? (
+                // ... lobby code ...
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-4 md:p-8 text-center bg-slate-50/50 dark:bg-slate-900/50 backdrop-blur-sm">
                     <div className="w-12 h-12 md:w-20 md:h-20 bg-indigo-600 rounded-xl md:rounded-[2rem] flex items-center justify-center text-white mb-4 md:mb-6 shadow-2xl rotate-3">
                         <Monitor size={24} className="md:w-10 md:h-10" />
@@ -232,7 +272,7 @@ export default function GameView() {
                     <h2 className="text-xl md:text-3xl font-black text-slate-900 dark:text-white mb-1 md:mb-2 uppercase tracking-tight">Game Lobby</h2>
                     <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 font-bold mb-6 md:mb-10">Wait for more players or start the match!</p>
 
-                    <div className="w-full max-w-md grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mb-6 md:mb-10">
+                    <div className="w-full max-w-2xl grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-10">
                         <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
                             <label className="block text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 md:mb-3 text-left">Total Rounds</label>
                             <div className="flex items-center gap-3 md:gap-4">
@@ -265,6 +305,41 @@ export default function GameView() {
                                 >+</button>
                             </div>
                         </div>
+                        <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <label className="block text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 md:mb-3 text-left">Canvas Ratio</label>
+                            <div className="flex items-center gap-2">
+                                {(['16:9', '4:3', '1:1'] as const).map(ratio => (
+                                    <button
+                                        key={ratio}
+                                        disabled={!isHost}
+                                        onClick={() => updateSettings({ aspectRatio: ratio })}
+                                        className={cn(
+                                            "flex-1 py-2 rounded-lg font-black text-[10px] md:text-xs transition-all",
+                                            settings.aspectRatio === ratio 
+                                                ? "bg-indigo-500 text-white" 
+                                                : "bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600"
+                                        )}
+                                    >
+                                        {ratio}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="w-full max-w-2xl bg-white dark:bg-slate-800 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm mb-6 md:mb-10">
+                        <label className="block text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 md:mb-3 text-left">Custom Words (Optional)</label>
+                        <textarea 
+                            disabled={!isHost}
+                            value={settings.customWords.join(', ')}
+                            onChange={(e) => {
+                                const words = e.target.value.split(',').map(w => w.trim()).filter(w => w.length > 0);
+                                updateSettings({ customWords: words });
+                            }}
+                            placeholder="word1, word2, word3..."
+                            className="w-full h-20 md:h-24 bg-slate-50 dark:bg-slate-900 border-2 border-transparent focus:border-indigo-500 rounded-xl md:rounded-2xl p-3 md:p-4 text-xs md:text-sm font-bold outline-none resize-none transition-all"
+                        />
+                        <p className="text-[8px] md:text-[10px] text-slate-400 mt-2 text-left italic">Separate words with commas. Custom words will be mixed with default ones.</p>
                     </div>
 
                     {!isHost && (
@@ -275,12 +350,25 @@ export default function GameView() {
                     )}
                 </div>
             ) : (
-                <Canvas />
+                <>
+                    <Canvas />
+                    {/* Live Activity Feed Overlay for Mobile/Drawer */}
+                    <div className="absolute top-4 left-4 right-4 pointer-events-none flex flex-col gap-2 items-start">
+                        {chat.filter(m => m.isSystem).slice(-3).map((msg) => (
+                            <div 
+                                key={msg.id} 
+                                className="bg-slate-900/80 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[10px] font-bold border border-white/10 shadow-lg animate-in slide-in-from-left-5 duration-300"
+                            >
+                                ✨ {msg.text}
+                            </div>
+                        ))}
+                    </div>
+                </>
             )}
           </div>
           
-          {/* Smart Guess Input - Hidden for Drawer */}
-          {!isMeDrawing && (
+          {/* Smart Guess Input - Hidden for Drawer or when not playing */}
+          {!isMeDrawing && phase === 'playing' && (
               <form onSubmit={handleSendGuess} className="flex gap-2 md:gap-4 items-end pb-2 md:pb-0">
                 <div className="flex-grow relative group">
                     <input 
@@ -306,11 +394,10 @@ export default function GameView() {
           )}
         </div>
 
-        {/* Immersive Chat */}
+        {/* Immersive Chat - Flexible width */}
         <div className={cn(
-            "w-full md:w-80 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md rounded-2xl md:rounded-[2rem] border border-white dark:border-slate-800 flex flex-col overflow-hidden animate-in duration-500",
-            (isMeDrawing && phase === 'playing' ? "hidden md:hidden" : ""),
-            (activeTab !== 'chat' && "hidden md:flex")
+            "flex-none md:flex-[1] lg:flex-[0.8] min-w-0 md:min-w-[240px] lg:min-w-[280px] max-w-full md:max-w-[320px] lg:max-w-[360px] bg-white/50 dark:bg-slate-900/50 backdrop-blur-md rounded-2xl md:rounded-[2rem] border border-white dark:border-slate-800 flex flex-col overflow-hidden animate-in duration-500",
+            activeTab !== 'chat' && "hidden md:flex"
         )}>
           <div className="p-3 md:p-5 border-b border-white dark:border-slate-800 flex items-center gap-2 md:gap-3">
               <div className="p-1.5 md:p-2 bg-slate-100 dark:bg-slate-800 rounded-lg md:rounded-xl text-slate-500">

@@ -1,9 +1,16 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useGameStore } from '../store/useGameStore';
+import { soundManager } from '../utils/soundManager';
 
 export const Timer: React.FC = () => {
   const timeLeft = useGameStore((state) => state.timeLeft);
   const initialTime = useGameStore((state) => state.initialTime);
+
+  useEffect(() => {
+    if (timeLeft <= 10 && timeLeft > 0) {
+        soundManager.playTick();
+    }
+  }, [timeLeft]);
 
   const radius = 20;
   const circumference = 2 * Math.PI * radius;

@@ -17,6 +17,12 @@ export default function Lobby() {
     e.preventDefault();
     if (!name.trim()) return;
     
+    let playerId = localStorage.getItem('playerId');
+    if (!playerId) {
+        playerId = Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('playerId', playerId);
+    }
+
     const finalRoomId = roomId.trim() || generateRoomId();
     sessionStorage.setItem('playerName', name);
     navigate(`/room/${finalRoomId}`);

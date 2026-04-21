@@ -20,11 +20,13 @@ interface GameState {
   players: Player[];
   phase: 'lobby' | 'selecting' | 'playing' | 'game_over';
   currentDrawer: string | null;
+  hostId: string | null;
   word: string;
   hints: string;
   currentRound: number;
   chat: ChatMessage[];
   wordOptions: string[];
+  canvasState: any[] | null;
   waitingForWord: { drawerId: string, drawerName: string } | null;
   theme: 'light' | 'dark';
   timeLeft: number;
@@ -32,6 +34,8 @@ interface GameState {
   settings: {
       totalRounds: number;
       drawTime: number;
+      aspectRatio: '16:9' | '4:3' | '1:1';
+      customWords: string[];
   };
   setGameState: (state: Partial<GameState>) => void;
   addChatMessage: (msg: ChatMessage) => void;
@@ -44,18 +48,22 @@ export const useGameStore = create<GameState>((set) => ({
   players: [],
   phase: 'lobby',
   currentDrawer: null,
+  hostId: null,
   word: '',
   hints: '',
   currentRound: 1,
   chat: [],
   wordOptions: [],
+  canvasState: null,
   waitingForWord: null,
   theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'light',
   timeLeft: 0,
   initialTime: 0,
   settings: {
       totalRounds: 3,
-      drawTime: 80
+      drawTime: 80,
+      aspectRatio: '16:9',
+      customWords: []
   },
   setGameState: (state) => set((prev) => ({ ...prev, ...state })),
   addChatMessage: (msg) => set((prev) => ({ chat: [...prev.chat, msg] })),

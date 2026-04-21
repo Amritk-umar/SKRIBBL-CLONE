@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useGameStore } from '../store/useGameStore';
 import type { ChatMessage, Player } from '../store/useGameStore';
+import { soundManager } from '../utils/soundManager';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
 
@@ -19,24 +20,32 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     socket.on('connect', () => {
         const roomId = window.location.pathname.split('/room/')[1];
         const name = sessionStorage.getItem('playerName');
-        if (roomId && name) {
-            socket.emit('join_room', { roomId, name });
+        const playerId = localStorage.getItem('playerId');
+        if (roomId && name && playerId) {
+            socket.emit('join_room', { roomId, name, playerId });
         }
     });
 
     socket.on('room_state', (data: any) => {
       setGameState({ 
         players: data.players, 
-        settings: data.settings,
+        settings: {
+            ...data.settings,
+            customWords: data.settings.customWords || []
+        },
         phase: data.phase,
         currentRound: data.currentRound,
         currentDrawer: data.currentDrawer,
+        hostId: data.hostId,
         word: data.phase === 'playing' ? undefined : '',
-        hints: data.phase === 'playing' ? undefined : ''
+        hints: data.phase === 'playing' ? undefined : '',
+        timeLeft: data.timeLeft,
+        initialTime: data.initialTime
       });
     });
 
     socket.on('waiting_for_word', (data: { drawerId: string, drawerName: string, round: number }) => {
+      soundManager.playNotification();
       setGameState({ 
         phase: 'selecting', 
         waitingForWord: data,
@@ -69,6 +78,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setGameState({ timeLeft: time });
     });
 
+    socket.on('canvas_state', (history: any[]) => {
+      setGameState({ canvasState: history });
+    });
+
     socket.on('hint', (data: { hint: string }) => {
       setGameState({ hints: data.hint });
     });
@@ -79,6 +92,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     socket.on('guess_result', (data: { correct: boolean, playerId: string, points: number }) => {
         if (data.correct) {
+            soundManager.playSuccess();
             updatePlayerScore(data.playerId, data.points);
         }
     });
@@ -89,6 +103,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     socket.on('game_over', (data: { leaderboard: Player[] }) => {
+        soundManager.playFanfare();
         setGameState({ phase: 'game_over', players: data.leaderboard });
     });
 

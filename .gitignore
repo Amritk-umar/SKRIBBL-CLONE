@@ -111,3 +111,6 @@ dist
 
 # PDFs
 *.pdf
+
+# Gemini Context
+GEMINI.md
